@@ -1,0 +1,19 @@
+                                                   Test case suite
+                                                        |
+                                                   Utilities (debugfs, e2fprog etc)
+                                                        |
+                                                       VFS
+                                                        |
+                                        procfs, sysfs, devfs, tmpfs, rootfs, ext4, xfs, overlay, NFS, SAMBA
+                                                        |
+                                                RAID/LVM/BCACHE
+                                                        |
+                                                     Block layer (IO scheduler)
+                                                        |
+                                                Disk driver (NVME, ATA, SCSI, open-channel, RDMA-based distributed storage)
+                                                        |
+                                       Platform (new hardware: openPower - Power9)     (Interrupt, SMP boot, Kexec/kdump, IO, driver base, PCI, KVM)
+                                                        |
+                                                     Firmware             - ?
+                                                        |
+                                                BMC (Firmware, ARM based) - AST2400/2500
