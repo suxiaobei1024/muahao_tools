@@ -20,10 +20,7 @@
 #       qemu/
 #   alikernel/
 
-#cmd_qemu_system=`find . -name qemu-system-x86_64`
-cmd_qemu_system="./open_linux/qemu/x86_64-softmmu/qemu-system-x86_64"
-#cmd_qemu_img=`find . -name qemu-img`
-cmd_qemu_img="./open_linux/qemu/qemu-img"
+
 #iso_path=`find . -name Fedora-Server-dvd-x86_64-25-1.3.iso`
 gitinfo="
 git clone https://github.com/torvalds/linux.git\n
@@ -35,59 +32,140 @@ wget http://busybox.net/downloads/busybox-1.27.2.tar.bz2\n"
 
 root_dir=`cd "$(dirname "$0")";pwd`
 
-#root dir
-if [[ $root_dir != "/data/sandbox" ]];then
-        echo "Please at root dir /data/sandbox, now we are at:`pwd`"
-fi
-
 root_dir="/data/sandbox/"
 open_linux_dir="${root_dir}/open_linux"
 buildroot_dir="${open_linux_dir}/buildroot/"
 linux_dir="${open_linux_dir}/linux/"
 qemu_dir="${open_linux_dir}/qemu/"
+muahao_tools_dir="${root_dir}/muahao_tools/"
 alikernel4_9_dir="${root_dir}/alikernel-4.9/"
 busybox_dir="${open_linux_dir}/busybox-1.27.2/"
 vm_path="${root_dir}/vm/"
+rootfs_cpio_path="${buildroot_dir}output/images/rootfs.cpio.xz"
+
+cmd_qemu_system="${qemu_dir}/x86_64-softmmu/qemu-system-x86_64"
+cmd_qemu_img="${qemu_dir}/qemu-img"
+
+#.config 配置模板
+gavins_config_for_linux_path="${muahao_tools_dir}/example_config/gavins_config_for_linux"
+gavins_config_for_buildroot_path="${muahao_tools_dir}/example_config/gavins_config_for_buildroot"
+#目标.config
+config_for_linux_path_we_need=$gavins_config_for_linux_path
+config_for_buildroot_path_we_need=$gavins_config_for_buildroot_path
+
+. ${muahao_tools_dir}/shell_libs/log.sh
+
 
 cd $root_dir
 #####################环境检查：
-prepare(){
+check(){
+		#check buildroot
+		if [[ ! -e ${rootfs_cpio_path} ]];then
+			log_error "${rootfs_cpio_path} not exist!"
+		else
+			log_info "${rootfs_cpio_path} exist!"
+		fi
+		
+		#check qemu 
         if [[ ! -e ${cmd_qemu_system} || ! -e ${cmd_qemu_img} ]];then
-                echo "$cmd_qemu_system not exist!"
-                exit 1
+                log_error "$cmd_qemu_system not exist!"
         else
-                echo "$cmd_qemu_system ok!"
+                log_info "$cmd_qemu_system exist!"
         fi
 
-        pwd_dir=`pwd`
-        if [[ "$pwd_dir" != "/data/sandbox" ]];then
-                echo "$pwd_dir != /data/sandbox"
-                exit 1
-        else
-                echo "$pwd_dir is at right dir:/data/sandbox  ok!"
-        fi
-
+		#check vm
 		if [[ ! -d "${vm_path}" ]];then
 			mkdir -p "${vm_path}"
+			log_info "Create dir ${vm_path}"
+		else
+			log_info "${vm_path} already exist!"
+		fi
+
+		#check linux .config 
+		if [[ $(cat ${linux_dir}/.config | grep "CONFIG_INITRAMFS_SOURCE" | grep -q "open_linux";echo $?) != 0 ]];then
+			log_info "linux .config CONFIG_INITRAMFS_SOURCE not configure, try to fix..."
+			aa="CONFIG_INITRAMFS_SOURCE=${rootfs_cpio_path}"
+			sed -i '/CONFIG_INITRAMFS_SOURCE/d' "${linux_dir}/.config"
+			echo $aa >> "${linux_dir}/.config"
+			loginfo "fix done!"
+		else
+			log_info "linux .config CONFIG_INITRAMFS_SOURCE already configured!"
 		fi
 }
 
 
 ###################预备编译工作：
 configure_buildroot(){
+		echo "We suggest to use gavin's .config to build buildroot..."
+		if [[ ! -e ${config_for_buildroot_path_we_need} ]];then
+			log_error_exit "${config_for_buildroot_path_we_need} not exist!"
+		else
+			log_info "We are going to use ${config_for_buildroot_path_we_need} "
+		fi
+
+		dd=`date +%Y%m%d-%H%M%S`
+		if [[ $(mv "$buildroot_dir/.config" "/tmp/buildroot_config_${dd}" >/dev/null 2>&1;echo $?) == 0 ]];then
+			log_info "Backup: $buildroot_dir/.config -> /tmp/buildroot_config_$dd success!"
+		else
+			log_error_exit "Backup: $buildroot_dir/.config -> /tmp/buildroot_config_$dd failed!"
+		fi
+
+		# begin build buildroot
         cd $root_dir
         git clone https://github.com/muahao/muahao_tools.git
+		if [[ $? != 0 ]];then
+			log_error_exit "git clone https://github.com/muahao/muahao_tools.git failed"
+		fi
         cp "$root_dir/muahao_tools/example_config/gavins_config_for_buildroot" "$buildroot_dir/.config"
         git clone https://github.com/buildroot/buildroot
-        yum install -y perl-ExtUtils-MakeMaker
+		if [[ $(yum install -y perl-ExtUtils-MakeMaker >/dev/null 2>&1;echo $?) != 0 ]];then
+			log_error_exit "yum install -y perl-ExtUtils-MakeMaker failed"
+		fi
         cd $buildroot_dir
         make -j 20
 }
 
 configure_linux(){
+		# define .config
+		log_info "We suggest to use gavin's .config to build linux..."
+		if [[ ! -e ${config_for_linux_path_we_need} ]];then
+			log_error_exit "${config_for_linux_path_we_need} not exist!"
+		else
+			log_info "We are going to use ${config_for_linux_path_we_need} "
+		fi
+
+		dd=`date +%Y%m%d-%H%M%S`
+		if [[ $(mv "$linux_dir/.config" "/tmp/config_${dd}" >/dev/null 2>&1;echo $?) == 0 ]];then
+			log_info "Backup: $linux_dir/.config -> /tmp/config_$dd success!"
+		else
+			log_error_exit "Backup: $linux_dir/.config -> /tmp/config_$dd failed!"
+		fi
+		
+		if [[ $(cp "${config_for_linux_path_we_need}" "$linux_dir/.config" >/dev/null 2>&1;echo $?) == 0  ]];then
+			log_info "We final used .config is: ${config_for_linux_path_we_need}"
+		else
+			log_error_exit "We final used .config is: ${config_for_linux_path_we_need}"
+		fi
+
+		# should modify .config
+		if [[ $(cat ${linux_dir}/.config | grep "CONFIG_INITRAMFS_SOURCE" | grep -q "open_linux";echo $?) != 0 ]];then
+			log_error_exit "${linux_dir}/.config CONFIG_INITRAMFS_SOURCE not configure!"
+			aa="CONFIG_INITRAMFS_SOURCE=${rootfs_cpio_path}"
+			sed -i '/CONFIG_INITRAMFS_SOURCE/d' "${linux_dir}/.config"
+			echo $aa >> "${linux_dir}/.config"
+		else
+			log_info "`cat ${linux_dir}/.config | grep 'CONFIG_INITRAMFS_SOURCE' | grep -v grep`"	
+		fi
+
+		# begin build linux
         cd $root_dir
-        cp "$root_dir/muahao_tools/example_config/gavins_config_for_linux" "$linux_dir/.config"
-        git clone https://github.com/torvalds/linux.git
+		if [[ ! -e ${root_dir} ]];then
+			log_info "We should do: git clone https://github.com/torvalds/linux.git ..."
+        	git clone https://github.com/torvalds/linux.git
+		else
+			log_info "$linux_dir already exist! Please cd $linux_dir to excute git pull !"
+		fi
+		log_info "Begin configure linux..."
         cd $linux_dir
         make -j 20
 }
@@ -97,9 +175,13 @@ configure_qemu() {
         cd $open_linux_dir
         git clone git://git.qemu-project.org/qemu.git
         cd $qemu_dir
-        yum install pixman-devel -y
-        yum install -y glib2-devel
-   ./configure --target-list=x86_64-softmmu \
+		if [[ $(yum install pixman-devel -y >/dev/null 2>&1;echo $?) != 0 ]];then
+			log_error_exit "yum install pixman-devel -y failed"
+		fi
+		if [[ $(yum install -y glib2-devel >/dev/null 2>&1;echo $?) != 0 ]];then
+			log_error_exit "yum install pixman-devel -y failed"
+		fi
+   		./configure --target-list=x86_64-softmmu \
                --enable-debug --enable-werror \
                --disable-fdt --disable-kvm \
                --disable-xen --disable-vnc
@@ -221,29 +303,30 @@ kill_02(){
 
 #############help
 if [[ $# == 0 ]];then
-        echo "一键部署:./$0 one_deploy"
-        echo "编译:./$0 configure buildroot/linux/qemu/busybox"
-        echo "环境检查:./$0 prepare"
+        loginfo "一键部署" "$0 one_deploy"
+        loginfo "编译" "$0 configure buildroot/linux/qemu/busybox"
+        loginfo  "环境检查" "$0 check"
         echo ""
-		echo "方法1.step1:./$0 creat_image /data/sandbox/vm/disk01.raw(device)"
-        echo "方法1.step2:./$0 start_vm /xx/xx/bzImage /data/sandbox/vm/disk01.raw"
-        echo "方法1.step3:./$0 stop_vm"
+		loginfo "方法1.step1" "$0 creat_image /data/sandbox/vm/disk01.raw(device)"
+        loginfo "方法1.step2" "$0 start_vm /xx/xx/bzImage /data/sandbox/vm/disk01.raw"
+        loginfo "方法1.step3" "$0 stop_vm"
         echo ""
-		echo "方法2.with busybox:"
-		echo "方法2.step1:./$0 mkfs /data/sandbox/vm/Disk01.raw(device) /data/sandbox/vm/Img01(mountpoint)"
-        echo "方法2.step2:./$0 modules_install /data/sandbox/alikernel-4.9/kernel-4.9/ /data/sandbox/vm/Img01/"
-        echo "方法2.step3:./$0 busybox_boot /xx/xx/bzImage /data/sandbox/vm/Disk01.raw"
-        echo "方法2.step4:./$0 kill"
+		loginfo "方法2.with busybox:"
+		loginfo "方法2.step1" "$0 mkfs /data/sandbox/vm/Disk01.raw(device) /data/sandbox/vm/Img01(mountpoint)"
+        loginfo "方法2.step2" "$0 modules_install /data/sandbox/alikernel-4.9/kernel-4.9/ /data/sandbox/vm/Img01/"
+        loginfo "方法2.step3" "$0 busybox_boot /xx/xx/bzImage /data/sandbox/vm/Disk01.raw"
+        loginfo "方法2.step4" "$0 kill"
         echo ""
-        echo "bzImage列表:"
+        loginfo "bzImage列表:"
         echo `find . -name bzImage`
         echo ""
-        echo -e "Git信息:\n`echo -e $gitinfo`-e "
+        loginfo "Git信息" 
+		echo "`echo -e $gitinfo` "
         echo ""
 
 else
         #检查环境
-        prepare
+        check
 
         #一键部署
         if [[ $1 == "one_deploy" ]];then
