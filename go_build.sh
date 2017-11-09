@@ -112,12 +112,22 @@ configure_buildroot(){
 
 		# begin build buildroot
         cd $root_dir
-        git clone https://github.com/muahao/muahao_tools.git
-		if [[ $? != 0 ]];then
-			log_error_exit "git clone https://github.com/muahao/muahao_tools.git failed"
+		if [[  ! -e ${muahao_tools_dir} ]];then
+    	    git clone https://github.com/muahao/muahao_tools.git
+			if [[ $? != 0 ]];then
+				log_error_exit "git clone https://github.com/muahao/muahao_tools.git failed!"
+			fi
+		else
+			log_info "muahao_tools.git exist!"
 		fi
-        cp "$root_dir/muahao_tools/example_config/gavins_config_for_buildroot" "$buildroot_dir/.config"
-        git clone https://github.com/buildroot/buildroot
+
+        cp "${config_for_buildroot_path_we_need}" "$buildroot_dir/.config"
+		if [[ ! -e ${buildroot_dir} ]];then
+			git clone https://github.com/buildroot/buildroot
+		else
+			log_info "https://github.com/buildroot/buildroot already clone !"
+		fi
+
 		if [[ $(yum install -y perl-ExtUtils-MakeMaker >/dev/null 2>&1;echo $?) != 0 ]];then
 			log_error_exit "yum install -y perl-ExtUtils-MakeMaker failed"
 		fi
