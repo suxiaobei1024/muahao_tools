@@ -318,7 +318,7 @@ if [[ $# == 0 ]];then
         loginfo "方法2.step4" "$0 kill"
         echo ""
         loginfo "bzImage列表:"
-        echo `find . -name bzImage`
+        find ${root_dir} -name "*bzImage"
         echo ""
         loginfo "Git信息" 
 		echo "`echo -e $gitinfo` "
