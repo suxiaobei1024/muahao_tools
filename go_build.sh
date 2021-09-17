@@ -61,6 +61,7 @@ cd $root_dir
 #####################环境检查：
 check(){
 	#check buildroot
+	log_info "Check...."
 	if [[ ! -e ${rootfs_cpio_path} ]];then
 		log_error "${rootfs_cpio_path} not exist!"
 	else
@@ -96,7 +97,7 @@ check(){
 
 
 ###################预备编译工作：
-configure_buildroot(){
+build_buildroot(){
 	echo "We suggest to use gavin's .config to build buildroot..."
 	if [[ ! -e ${config_for_buildroot_path_we_need} ]];then
 		log_error_exit "${config_for_buildroot_path_we_need} not exist!"
@@ -108,13 +109,14 @@ configure_buildroot(){
 	if [[ $(mv "$buildroot_dir/.config" "/tmp/buildroot_config_${dd}" >/dev/null 2>&1;echo $?) == 0 ]];then
 		log_info "Backup: $buildroot_dir/.config -> /tmp/buildroot_config_$dd success!"
 	else
-		log_error_exit "Backup: $buildroot_dir/.config -> /tmp/buildroot_config_$dd failed!"
+	#	log_error_exit "Backup: $buildroot_dir/.config -> /tmp/buildroot_config_$dd failed!"
+		log_info "Backup: $buildroot_dir/.config -> /tmp/buildroot_config_$dd failed!"
 	fi
 
 	# begin build buildroot
     cd $root_dir
 	if [[  ! -e ${muahao_tools_dir} ]];then
-    	    	git clone https://github.com/muahao/muahao_tools.git
+    	git clone https://github.com/muahao/muahao_tools.git
 		if [[ $? != 0 ]];then
 			log_error_exit "git clone https://github.com/muahao/muahao_tools.git failed!"
 		fi
@@ -129,15 +131,19 @@ configure_buildroot(){
 		log_info "https://github.com/buildroot/buildroot already clone !"
 	fi
 
-	if [[ $(yum install -y perl-ExtUtils-MakeMaker >/dev/null 2>&1;echo $?) != 0 ]];then
-		log_error_exit "yum install -y perl-ExtUtils-MakeMaker failed"
-	fi
+	#if [[ $(yum install -y perl-ExtUtils-MakeMaker >/dev/null 2>&1;echo $?) != 0 ]];then
+	#if [[ $(yum install -y perl-ExtUtils-MakeMaker;echo $?) != 0 ]];then
+	#	log_error_exit "yum install -y perl-ExtUtils-MakeMaker failed"
+	#fi
+
     cd $buildroot_dir
+	log_info  "begin to build buildroot"
     make -j 20
 }
 
 configure_linux(){
 	# define .config
+	log_info "begin to configure liux"
 	log_info "We suggest to use gavin's .config to build linux..."
 	if [[ ! -e ${config_for_linux_path_we_need} ]];then
 		log_error_exit "${config_for_linux_path_we_need} not exist!"
@@ -149,7 +155,8 @@ configure_linux(){
 	if [[ $(mv "$linux_dir/.config" "/tmp/config_${dd}" >/dev/null 2>&1;echo $?) == 0 ]];then
 		log_info "Backup: $linux_dir/.config -> /tmp/config_$dd success!"
 	else
-		log_error_exit "Backup: $linux_dir/.config -> /tmp/config_$dd failed!"
+		#log_error_exit "Backup: $linux_dir/.config -> /tmp/config_$dd failed!"
+		log_info "Backup: $linux_dir/.config -> /tmp/config_$dd failed!"
 	fi
 	
 	if [[ $(cp "${config_for_linux_path_we_need}" "$linux_dir/.config" >/dev/null 2>&1;echo $?) == 0  ]];then
@@ -181,7 +188,7 @@ configure_linux(){
     make -j 20
 }
 
-configure_qemu() {
+build_qemu() {
     #只要编译qemu的时候需要用
     cd $open_linux_dir
     git clone git://git.qemu-project.org/qemu.git
@@ -199,7 +206,7 @@ configure_qemu() {
 	make -j 20
 }
 
-configure_busybox(){
+build_busybox(){
 	cd $open_linux_dir
 	wget http://busybox.net/downloads/busybox-1.27.2.tar.bz2
 	tar  -xjf busybox-1.27.2.tar.bz2
@@ -220,15 +227,15 @@ configure_busybox(){
     #/data/sandbox/img//bin/chattr -> busybox
 }
 
-configure_one(){
+build_one_project(){
     if [[ $1 == "buildroot" ]];then
-            configure_buildroot
+            build_buildroot
     elif [[ $1 == "linux" ]];then
             configure_linux
     elif [[ $1 == "qemu" ]];then
-            configure_qemu
+            build_qemu
     elif [[ $1 == "busybox" ]];then
-            configure_busybox
+            build_busybox
     else
             echo "configure lack argument!"
     fi
@@ -237,8 +244,8 @@ configure_one(){
 one_deply(){
     if [[ ! -e $open_linux_dir ]];then
             mkdir -p $open_linux_dir
-            configure_qemu
-            configure_buildroot
+            build_qemu
+            build_buildroot
             configure_linux
     else
             echo "$open_linux_dir already exist!"
@@ -247,7 +254,7 @@ one_deply(){
 }
 
 ####################方法1：
-creat_image_01(){
+create_image_01(){
     #方法1: 仅仅需要 ${cmd_qemu_img} create -f raw ${img_name} 10G
     #${cmd_qemu_img} create -f qcow2 ${img_name} 20G
     if [[ -e ${img_name} ]];then
@@ -270,7 +277,7 @@ stop_vm_01() {
 
 
 ###################方法2：
-creat_image_02(){
+create_image_02(){
     #方法2: 需要创建文件系统
     if [[ -e ${img_name} ]];then
         rm -fr ${img_name}
@@ -312,14 +319,16 @@ kill_02(){
 }
 
 
-#############help
-if [[ $# == 0 ]];then
+usage() {
     loginfo "一键部署" "$0 one_deploy"
-    loginfo "编译" "$0 configure buildroot/linux/qemu/busybox"
-    loginfo  "环境检查" "$0 check"
+    loginfo "编译" "$0 build  buildroot"
+    loginfo "编译" "$0 build  linux"
+    loginfo "编译" "$0 build  qemu"
+    loginfo "编译" "$0 build  busybox"
+    loginfo "环境检查" "$0 check"
 
     echo ""
-	loginfo "方法1.step1" "$0 creat_image /data/sandbox/vm/disk01.raw(device)"
+	loginfo "方法1.step1" "$0 create_image /data/sandbox/vm/disk01.raw(device)"
     loginfo "方法1.step2" "$0 start_vm /xx/xx/bzImage /data/sandbox/vm/disk01.raw"
     loginfo "方法1.step3" "$0 stop_vm"
 
@@ -338,7 +347,10 @@ if [[ $# == 0 ]];then
     loginfo "Git信息" 
 	echo "`echo -e $gitinfo` "
     echo ""
+}
 
+if [[ $# == 0 ]];then
+	usage 
 else
     #检查环境
     check
@@ -349,15 +361,15 @@ else
     fi
 
     #预备：编译qemu
-    if [[ $1 == "configure" ]];then
-        configure_target=$2
-        configure_one $configure_target
+    if [[ $1 == "build" ]];then
+        project_name=$2
+        build_one_project $project_name
     ######################### 
     #       方法1           #
     #########################
-    elif [[ $1 == "creat_image" ]];then
+    elif [[ $1 == "create_image" ]];then
         img_name="$2"
-        creat_image_01 $img_name
+        create_image_01 $img_name
     elif [[ $1 == "start_vm" ]];then
         kernel_bzImage="$2"
 		img_name="$3"
@@ -376,7 +388,7 @@ else
 			echo "img_name:$img_name , mount_point:$mount_point"
 			exit 1
 		else
-    	    creat_image_02 $img_name $mount_point
+    	    create_image_02 $img_name $mount_point
 		fi
     elif [[ $1 == "modules_install" ]];then
 		module_path=$2
