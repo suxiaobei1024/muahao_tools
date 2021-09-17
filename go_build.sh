@@ -5,6 +5,7 @@
 # 1. 一键部署kernel开发环境
 #        1.1 git clone linux qemu buildroot
 #        1.2 分别configure , make -j 20
+#
 # 2. 提供2个方法快速启动vm:
 #       方法1：（函数名01结尾） 推荐这个方法！简单！gavin的方式！
                 # qemu + buildroot + kernel
@@ -68,9 +69,9 @@ check(){
 	
 	#check qemu 
     if [[ ! -e ${cmd_qemu_system} || ! -e ${cmd_qemu_img} ]];then
-            log_error "$cmd_qemu_system not exist!"
+		log_error "$cmd_qemu_system not exist!"
     else
-            log_info "$cmd_qemu_system exist!"
+		log_info "$cmd_qemu_system exist!"
     fi
 
 	#check vm
@@ -111,7 +112,7 @@ configure_buildroot(){
 	fi
 
 	# begin build buildroot
-        cd $root_dir
+    cd $root_dir
 	if [[  ! -e ${muahao_tools_dir} ]];then
     	    	git clone https://github.com/muahao/muahao_tools.git
 		if [[ $? != 0 ]];then
@@ -316,20 +317,24 @@ if [[ $# == 0 ]];then
     loginfo "一键部署" "$0 one_deploy"
     loginfo "编译" "$0 configure buildroot/linux/qemu/busybox"
     loginfo  "环境检查" "$0 check"
+
     echo ""
 	loginfo "方法1.step1" "$0 creat_image /data/sandbox/vm/disk01.raw(device)"
     loginfo "方法1.step2" "$0 start_vm /xx/xx/bzImage /data/sandbox/vm/disk01.raw"
     loginfo "方法1.step3" "$0 stop_vm"
+
     echo ""
 	loginfo "方法2.with busybox:"
 	loginfo "方法2.step1" "$0 mkfs /data/sandbox/vm/Disk01.raw(device) /data/sandbox/vm/Img01(mountpoint)"
     loginfo "方法2.step2" "$0 modules_install /data/sandbox/alikernel-4.9/kernel-4.9/ /data/sandbox/vm/Img01/"
     loginfo "方法2.step3" "$0 busybox_boot /xx/xx/bzImage /data/sandbox/vm/Disk01.raw"
     loginfo "方法2.step4" "$0 kill"
+  
     echo ""
     loginfo "bzImage列表:"
     find ${root_dir} -name "*bzImage"
-    echo ""
+    
+	echo ""
     loginfo "Git信息" 
 	echo "`echo -e $gitinfo` "
     echo ""
@@ -347,7 +352,9 @@ else
     if [[ $1 == "configure" ]];then
         configure_target=$2
         configure_one $configure_target
-    #方法1：
+    ######################### 
+    #       方法1           #
+    #########################
     elif [[ $1 == "creat_image" ]];then
         img_name="$2"
         creat_image_01 $img_name
@@ -357,7 +364,10 @@ else
         start_vm_01
     elif [[ $1 == "stop_vm" ]];then
         stop_vm_01
-    #方法2：
+ 
+    ######################### 
+    #       方法2：         #
+    #########################
     elif [[ $1 == "mkfs" ]];then
         echo "Begin mkfs..."
 		img_name=$2
