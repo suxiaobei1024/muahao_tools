@@ -59,143 +59,143 @@ config_for_buildroot_path_we_need=$gavins_config_for_buildroot_path
 cd $root_dir
 #####################环境检查：
 check(){
-		#check buildroot
-		if [[ ! -e ${rootfs_cpio_path} ]];then
-			log_error "${rootfs_cpio_path} not exist!"
-		else
-			log_info "${rootfs_cpio_path} exist!"
-		fi
-		
-		#check qemu 
-        if [[ ! -e ${cmd_qemu_system} || ! -e ${cmd_qemu_img} ]];then
-                log_error "$cmd_qemu_system not exist!"
-        else
-                log_info "$cmd_qemu_system exist!"
-        fi
+	#check buildroot
+	if [[ ! -e ${rootfs_cpio_path} ]];then
+		log_error "${rootfs_cpio_path} not exist!"
+	else
+		log_info "${rootfs_cpio_path} exist!"
+	fi
+	
+	#check qemu 
+    if [[ ! -e ${cmd_qemu_system} || ! -e ${cmd_qemu_img} ]];then
+            log_error "$cmd_qemu_system not exist!"
+    else
+            log_info "$cmd_qemu_system exist!"
+    fi
 
-		#check vm
-		if [[ ! -d "${vm_path}" ]];then
-			mkdir -p "${vm_path}"
-			log_info "Create dir ${vm_path}"
-		else
-			log_info "${vm_path} already exist!"
-		fi
+	#check vm
+	if [[ ! -d "${vm_path}" ]];then
+		mkdir -p "${vm_path}"
+		log_info "Create dir ${vm_path}"
+	else
+		log_info "${vm_path} already exist!"
+	fi
 
-		#check linux .config 
-		if [[ $(cat ${linux_dir}/.config | grep "CONFIG_INITRAMFS_SOURCE" | grep -q "open_linux";echo $?) != 0 ]];then
-			log_info "linux .config CONFIG_INITRAMFS_SOURCE not configure, try to fix..."
-			aa="CONFIG_INITRAMFS_SOURCE=${rootfs_cpio_path}"
-			sed -i '/CONFIG_INITRAMFS_SOURCE/d' "${linux_dir}/.config"
-			echo $aa >> "${linux_dir}/.config"
-			loginfo "fix done!"
-		else
-			log_info "linux .config CONFIG_INITRAMFS_SOURCE already configured!"
-		fi
+	#check linux .config 
+	if [[ $(cat ${linux_dir}/.config | grep "CONFIG_INITRAMFS_SOURCE" | grep -q "open_linux";echo $?) != 0 ]];then
+		log_info "linux .config CONFIG_INITRAMFS_SOURCE not configure, try to fix..."
+		aa="CONFIG_INITRAMFS_SOURCE=${rootfs_cpio_path}"
+		sed -i '/CONFIG_INITRAMFS_SOURCE/d' "${linux_dir}/.config"
+		echo $aa >> "${linux_dir}/.config"
+		loginfo "fix done!"
+	else
+		log_info "linux .config CONFIG_INITRAMFS_SOURCE already configured!"
+	fi
 }
 
 
 ###################预备编译工作：
 configure_buildroot(){
-		echo "We suggest to use gavin's .config to build buildroot..."
-		if [[ ! -e ${config_for_buildroot_path_we_need} ]];then
-			log_error_exit "${config_for_buildroot_path_we_need} not exist!"
-		else
-			log_info "We are going to use ${config_for_buildroot_path_we_need} "
-		fi
+	echo "We suggest to use gavin's .config to build buildroot..."
+	if [[ ! -e ${config_for_buildroot_path_we_need} ]];then
+		log_error_exit "${config_for_buildroot_path_we_need} not exist!"
+	else
+		log_info "We are going to use ${config_for_buildroot_path_we_need} "
+	fi
 
-		dd=`date +%Y%m%d-%H%M%S`
-		if [[ $(mv "$buildroot_dir/.config" "/tmp/buildroot_config_${dd}" >/dev/null 2>&1;echo $?) == 0 ]];then
-			log_info "Backup: $buildroot_dir/.config -> /tmp/buildroot_config_$dd success!"
-		else
-			log_error_exit "Backup: $buildroot_dir/.config -> /tmp/buildroot_config_$dd failed!"
-		fi
+	dd=`date +%Y%m%d-%H%M%S`
+	if [[ $(mv "$buildroot_dir/.config" "/tmp/buildroot_config_${dd}" >/dev/null 2>&1;echo $?) == 0 ]];then
+		log_info "Backup: $buildroot_dir/.config -> /tmp/buildroot_config_$dd success!"
+	else
+		log_error_exit "Backup: $buildroot_dir/.config -> /tmp/buildroot_config_$dd failed!"
+	fi
 
-		# begin build buildroot
+	# begin build buildroot
         cd $root_dir
-		if [[  ! -e ${muahao_tools_dir} ]];then
-    	    git clone https://github.com/muahao/muahao_tools.git
-			if [[ $? != 0 ]];then
-				log_error_exit "git clone https://github.com/muahao/muahao_tools.git failed!"
-			fi
-		else
-			log_info "muahao_tools.git exist!"
+	if [[  ! -e ${muahao_tools_dir} ]];then
+    	    	git clone https://github.com/muahao/muahao_tools.git
+		if [[ $? != 0 ]];then
+			log_error_exit "git clone https://github.com/muahao/muahao_tools.git failed!"
 		fi
+	else
+		log_info "muahao_tools.git exist!"
+	fi
 
-        cp "${config_for_buildroot_path_we_need}" "$buildroot_dir/.config"
-		if [[ ! -e ${buildroot_dir} ]];then
-			git clone https://github.com/buildroot/buildroot
-		else
-			log_info "https://github.com/buildroot/buildroot already clone !"
-		fi
+    cp "${config_for_buildroot_path_we_need}" "$buildroot_dir/.config"
+	if [[ ! -e ${buildroot_dir} ]];then
+		git clone https://github.com/buildroot/buildroot
+	else
+		log_info "https://github.com/buildroot/buildroot already clone !"
+	fi
 
-		if [[ $(yum install -y perl-ExtUtils-MakeMaker >/dev/null 2>&1;echo $?) != 0 ]];then
-			log_error_exit "yum install -y perl-ExtUtils-MakeMaker failed"
-		fi
-        cd $buildroot_dir
-        make -j 20
+	if [[ $(yum install -y perl-ExtUtils-MakeMaker >/dev/null 2>&1;echo $?) != 0 ]];then
+		log_error_exit "yum install -y perl-ExtUtils-MakeMaker failed"
+	fi
+    cd $buildroot_dir
+    make -j 20
 }
 
 configure_linux(){
-		# define .config
-		log_info "We suggest to use gavin's .config to build linux..."
-		if [[ ! -e ${config_for_linux_path_we_need} ]];then
-			log_error_exit "${config_for_linux_path_we_need} not exist!"
-		else
-			log_info "We are going to use ${config_for_linux_path_we_need} "
-		fi
+	# define .config
+	log_info "We suggest to use gavin's .config to build linux..."
+	if [[ ! -e ${config_for_linux_path_we_need} ]];then
+		log_error_exit "${config_for_linux_path_we_need} not exist!"
+	else
+		log_info "We are going to use ${config_for_linux_path_we_need} "
+	fi
 
-		dd=`date +%Y%m%d-%H%M%S`
-		if [[ $(mv "$linux_dir/.config" "/tmp/config_${dd}" >/dev/null 2>&1;echo $?) == 0 ]];then
-			log_info "Backup: $linux_dir/.config -> /tmp/config_$dd success!"
-		else
-			log_error_exit "Backup: $linux_dir/.config -> /tmp/config_$dd failed!"
-		fi
-		
-		if [[ $(cp "${config_for_linux_path_we_need}" "$linux_dir/.config" >/dev/null 2>&1;echo $?) == 0  ]];then
-			log_info "We final used .config is: ${config_for_linux_path_we_need}"
-		else
-			log_error_exit "We final used .config is: ${config_for_linux_path_we_need}"
-		fi
+	dd=`date +%Y%m%d-%H%M%S`
+	if [[ $(mv "$linux_dir/.config" "/tmp/config_${dd}" >/dev/null 2>&1;echo $?) == 0 ]];then
+		log_info "Backup: $linux_dir/.config -> /tmp/config_$dd success!"
+	else
+		log_error_exit "Backup: $linux_dir/.config -> /tmp/config_$dd failed!"
+	fi
+	
+	if [[ $(cp "${config_for_linux_path_we_need}" "$linux_dir/.config" >/dev/null 2>&1;echo $?) == 0  ]];then
+		log_info "We final used .config is: ${config_for_linux_path_we_need}"
+	else
+		log_error_exit "We final used .config is: ${config_for_linux_path_we_need}"
+	fi
 
-		# should modify .config
-		if [[ $(cat ${linux_dir}/.config | grep "CONFIG_INITRAMFS_SOURCE" | grep -q "open_linux";echo $?) != 0 ]];then
-			log_error_exit "${linux_dir}/.config CONFIG_INITRAMFS_SOURCE not configure!"
-			aa="CONFIG_INITRAMFS_SOURCE=${rootfs_cpio_path}"
-			sed -i '/CONFIG_INITRAMFS_SOURCE/d' "${linux_dir}/.config"
-			echo $aa >> "${linux_dir}/.config"
-		else
-			log_info "`cat ${linux_dir}/.config | grep 'CONFIG_INITRAMFS_SOURCE' | grep -v grep`"	
-		fi
+	# should modify .config
+	if [[ $(cat ${linux_dir}/.config | grep "CONFIG_INITRAMFS_SOURCE" | grep -q "open_linux";echo $?) != 0 ]];then
+		log_error_exit "${linux_dir}/.config CONFIG_INITRAMFS_SOURCE not configure!"
+		aa="CONFIG_INITRAMFS_SOURCE=${rootfs_cpio_path}"
+		sed -i '/CONFIG_INITRAMFS_SOURCE/d' "${linux_dir}/.config"
+		echo $aa >> "${linux_dir}/.config"
+	else
+		log_info "`cat ${linux_dir}/.config | grep 'CONFIG_INITRAMFS_SOURCE' | grep -v grep`"	
+	fi
 
-		# begin build linux
-        cd $root_dir
-		if [[ ! -e ${root_dir} ]];then
-			log_info "We should do: git clone https://github.com/torvalds/linux.git ..."
-        	git clone https://github.com/torvalds/linux.git
-		else
-			log_info "$linux_dir already exist! Please cd $linux_dir to excute git pull !"
-		fi
-		log_info "Begin configure linux..."
-        cd $linux_dir
-        make -j 20
+	# begin build linux
+    cd $root_dir
+	if [[ ! -e ${root_dir} ]];then
+		log_info "We should do: git clone https://github.com/torvalds/linux.git ..."
+        git clone https://github.com/torvalds/linux.git
+	else
+		log_info "$linux_dir already exist! Please cd $linux_dir to excute git pull !"
+	fi
+	log_info "Begin configure linux..."
+    cd $linux_dir
+    make -j 20
 }
 
 configure_qemu() {
     #只要编译qemu的时候需要用
-        cd $open_linux_dir
-        git clone git://git.qemu-project.org/qemu.git
-        cd $qemu_dir
-		if [[ $(yum install pixman-devel -y >/dev/null 2>&1;echo $?) != 0 ]];then
-			log_error_exit "yum install pixman-devel -y failed"
-		fi
-		if [[ $(yum install -y glib2-devel >/dev/null 2>&1;echo $?) != 0 ]];then
-			log_error_exit "yum install pixman-devel -y failed"
-		fi
-   		./configure --target-list=x86_64-softmmu \
-               --enable-debug --enable-werror \
-               --disable-fdt --disable-kvm \
-               --disable-xen --disable-vnc
-	   make -j 20
+    cd $open_linux_dir
+    git clone git://git.qemu-project.org/qemu.git
+ 	cd $qemu_dir
+    if [[ $(yum install pixman-devel -y >/dev/null 2>&1;echo $?) != 0 ]];then
+    	log_error_exit "yum install pixman-devel -y failed"
+    fi
+    if [[ $(yum install -y glib2-devel >/dev/null 2>&1;echo $?) != 0 ]];then
+    	log_error_exit "yum install pixman-devel -y failed"
+    fi
+    ./configure --target-list=x86_64-softmmu \
+       --enable-debug --enable-werror \
+       --disable-fdt --disable-kvm \
+       --disable-xen --disable-vnc
+	make -j 20
 }
 
 configure_busybox(){
@@ -220,39 +220,39 @@ configure_busybox(){
 }
 
 configure_one(){
-        if [[ $1 == "buildroot" ]];then
-                configure_buildroot
-        elif [[ $1 == "linux" ]];then
-                configure_linux
-        elif [[ $1 == "qemu" ]];then
-                configure_qemu
-        elif [[ $1 == "busybox" ]];then
-                configure_busybox
-        else
-                echo "configure lack argument!"
-        fi
+    if [[ $1 == "buildroot" ]];then
+            configure_buildroot
+    elif [[ $1 == "linux" ]];then
+            configure_linux
+    elif [[ $1 == "qemu" ]];then
+            configure_qemu
+    elif [[ $1 == "busybox" ]];then
+            configure_busybox
+    else
+            echo "configure lack argument!"
+    fi
 }
 
 one_deply(){
-        if [[ ! -e $open_linux_dir ]];then
-                mkdir -p $open_linux_dir
-                configure_qemu
-                configure_buildroot
-                configure_linux
-        else
-                echo "$open_linux_dir already exist!"
-                exit 0
-        fi
+    if [[ ! -e $open_linux_dir ]];then
+            mkdir -p $open_linux_dir
+            configure_qemu
+            configure_buildroot
+            configure_linux
+    else
+            echo "$open_linux_dir already exist!"
+            exit 0
+    fi
 }
 
 ####################方法1：
 creat_image_01(){
-        #方法1: 仅仅需要 ${cmd_qemu_img} create -f raw ${img_name} 10G
-        #${cmd_qemu_img} create -f qcow2 ${img_name} 20G
-        if [[ -e ${img_name} ]];then
-                rm -fr ${img_name}
-        fi
-        ${cmd_qemu_img} create -f raw ${img_name} 10G
+    #方法1: 仅仅需要 ${cmd_qemu_img} create -f raw ${img_name} 10G
+    #${cmd_qemu_img} create -f qcow2 ${img_name} 20G
+    if [[ -e ${img_name} ]];then
+            rm -fr ${img_name}
+    fi
+    ${cmd_qemu_img} create -f raw ${img_name} 10G
 }
 
 start_vm_01(){
@@ -264,13 +264,13 @@ start_vm_01(){
 }
 
 stop_vm_01() {
-   killall qemu-system-x86_64
+    killall qemu-system-x86_64
 }
 
 
 ###################方法2：
 creat_image_02(){
-        #方法2: 需要创建文件系统
+    #方法2: 需要创建文件系统
     if [[ -e ${img_name} ]];then
         rm -fr ${img_name}
     fi
@@ -289,8 +289,8 @@ creat_image_02(){
 }
 
 modules_install_02(){
-        cd $module_path;
-		make modules_install INSTALL_MOD_PATH=$mount_point
+    cd $module_path;
+	make modules_install INSTALL_MOD_PATH=$mount_point
 }
 
 boot_02(){
@@ -313,75 +313,75 @@ kill_02(){
 
 #############help
 if [[ $# == 0 ]];then
-        loginfo "一键部署" "$0 one_deploy"
-        loginfo "编译" "$0 configure buildroot/linux/qemu/busybox"
-        loginfo  "环境检查" "$0 check"
-        echo ""
-		loginfo "方法1.step1" "$0 creat_image /data/sandbox/vm/disk01.raw(device)"
-        loginfo "方法1.step2" "$0 start_vm /xx/xx/bzImage /data/sandbox/vm/disk01.raw"
-        loginfo "方法1.step3" "$0 stop_vm"
-        echo ""
-		loginfo "方法2.with busybox:"
-		loginfo "方法2.step1" "$0 mkfs /data/sandbox/vm/Disk01.raw(device) /data/sandbox/vm/Img01(mountpoint)"
-        loginfo "方法2.step2" "$0 modules_install /data/sandbox/alikernel-4.9/kernel-4.9/ /data/sandbox/vm/Img01/"
-        loginfo "方法2.step3" "$0 busybox_boot /xx/xx/bzImage /data/sandbox/vm/Disk01.raw"
-        loginfo "方法2.step4" "$0 kill"
-        echo ""
-        loginfo "bzImage列表:"
-        find ${root_dir} -name "*bzImage"
-        echo ""
-        loginfo "Git信息" 
-		echo "`echo -e $gitinfo` "
-        echo ""
+    loginfo "一键部署" "$0 one_deploy"
+    loginfo "编译" "$0 configure buildroot/linux/qemu/busybox"
+    loginfo  "环境检查" "$0 check"
+    echo ""
+	loginfo "方法1.step1" "$0 creat_image /data/sandbox/vm/disk01.raw(device)"
+    loginfo "方法1.step2" "$0 start_vm /xx/xx/bzImage /data/sandbox/vm/disk01.raw"
+    loginfo "方法1.step3" "$0 stop_vm"
+    echo ""
+	loginfo "方法2.with busybox:"
+	loginfo "方法2.step1" "$0 mkfs /data/sandbox/vm/Disk01.raw(device) /data/sandbox/vm/Img01(mountpoint)"
+    loginfo "方法2.step2" "$0 modules_install /data/sandbox/alikernel-4.9/kernel-4.9/ /data/sandbox/vm/Img01/"
+    loginfo "方法2.step3" "$0 busybox_boot /xx/xx/bzImage /data/sandbox/vm/Disk01.raw"
+    loginfo "方法2.step4" "$0 kill"
+    echo ""
+    loginfo "bzImage列表:"
+    find ${root_dir} -name "*bzImage"
+    echo ""
+    loginfo "Git信息" 
+	echo "`echo -e $gitinfo` "
+    echo ""
 
 else
-        #检查环境
-        check
+    #检查环境
+    check
 
-        #一键部署
-        if [[ $1 == "one_deploy" ]];then
-                one_deploy
-        fi
+    #一键部署
+    if [[ $1 == "one_deploy" ]];then
+		one_deploy
+    fi
 
-        #预备：编译qemu
-        if [[ $1 == "configure" ]];then
-                configure_target=$2
-                configure_one $configure_target
-        #方法1：
-        elif [[ $1 == "creat_image" ]];then
-                img_name="$2"
-                creat_image_01 $img_name
-        elif [[ $1 == "start_vm" ]];then
-                kernel_bzImage="$2"
-				img_name="$3"
-                start_vm_01
-        elif [[ $1 == "stop_vm" ]];then
-                stop_vm_01
-        #方法2：
-        elif [[ $1 == "mkfs" ]];then
-                echo "Begin mkfs..."
-				img_name=$2
-				mount_point=$3
-				if [[ -z  $img_name || -z $mount_point ]];then
-					echo "img_name:$img_name , mount_point:$mount_point"
-					exit 1
-				else
-                	creat_image_02 $img_name $mount_point
-				fi
-        elif [[ $1 == "modules_install" ]];then
-				module_path=$2
-				mount_point=$3
-				if [[ -z $module_path || -z $mount_point ]];then
-					echo "module_path:$module_path is empty!"
-					exit 1
-				else
-                	modules_install_02 $module_path $mount_point
-				fi
-        elif [[ $1 == "busybox_boot" ]];then
-                kernel_bzImage="$2"
-				img_name="$3"
-                boot_02 $kernel_bzImage $img_name
-        elif [[ $1 == "kill" ]];then
-                kill_02
-        fi
+    #预备：编译qemu
+    if [[ $1 == "configure" ]];then
+        configure_target=$2
+        configure_one $configure_target
+    #方法1：
+    elif [[ $1 == "creat_image" ]];then
+        img_name="$2"
+        creat_image_01 $img_name
+    elif [[ $1 == "start_vm" ]];then
+        kernel_bzImage="$2"
+		img_name="$3"
+        start_vm_01
+    elif [[ $1 == "stop_vm" ]];then
+        stop_vm_01
+    #方法2：
+    elif [[ $1 == "mkfs" ]];then
+        echo "Begin mkfs..."
+		img_name=$2
+		mount_point=$3
+		if [[ -z  $img_name || -z $mount_point ]];then
+			echo "img_name:$img_name , mount_point:$mount_point"
+			exit 1
+		else
+    	    creat_image_02 $img_name $mount_point
+		fi
+    elif [[ $1 == "modules_install" ]];then
+		module_path=$2
+		mount_point=$3
+		if [[ -z $module_path || -z $mount_point ]];then
+			echo "module_path:$module_path is empty!"
+			exit 1
+		else
+			modules_install_02 $module_path $mount_point
+		fi
+    elif [[ $1 == "busybox_boot" ]];then
+        kernel_bzImage="$2"
+		img_name="$3"
+        boot_02 $kernel_bzImage $img_name
+    elif [[ $1 == "kill" ]];then
+        kill_02
+    fi
 fi
