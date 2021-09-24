@@ -39,13 +39,15 @@ buildroot_dir="${open_linux_dir}/buildroot/"
 linux_dir="${open_linux_dir}/linux/"
 qemu_dir="${open_linux_dir}/qemu/"
 muahao_tools_dir="${root_dir}/muahao_tools/"
-alikernel4_9_dir="${root_dir}/alikernel-4.9/"
+shopee_kernel_dir="${root_dir}/xxx/"
 busybox_dir="${open_linux_dir}/busybox-1.27.2/"
 vm_path="${root_dir}/vm/"
 rootfs_cpio_path="${buildroot_dir}output/images/rootfs.cpio.xz"
 
 cmd_qemu_system="${qemu_dir}/x86_64-softmmu/qemu-system-x86_64"
+test ! -e "${qemu_dir}/x86_64-softmmu/qemu-system-x86_64" && cmd_qemu_system=`which qemu-system-x86_64`
 cmd_qemu_img="${qemu_dir}/qemu-img"
+test ! -e "${qemu_dir}/qemu-img" && cmd_qemu_img=`which qemu-img`
 
 #.config 配置模板
 gavins_config_for_linux_path="${muahao_tools_dir}/example_config/gavins_config_for_linux"
@@ -63,7 +65,7 @@ check(){
 	#check buildroot
 	log_info "Check...."
 	if [[ ! -e ${rootfs_cpio_path} ]];then
-		log_error "${rootfs_cpio_path} not exist!"
+		log_info "${rootfs_cpio_path} not exist!"
 	else
 		log_info "${rootfs_cpio_path} exist!"
 	fi
@@ -227,11 +229,21 @@ build_busybox(){
     #/data/sandbox/img//bin/chattr -> busybox
 }
 
+build_kernel() {
+	kernel_source_path=$1
+    loginfo "编译内核:" "$kernel_source_path"
+	cd $kernel_source_path
+	make -j 20 
+}
+
 build_one_project(){
     if [[ $1 == "buildroot" ]];then
             build_buildroot
     elif [[ $1 == "linux" ]];then
             configure_linux
+    elif [[ $1 == "kernel" ]];then
+			kernel_source_path=$2
+            build_kernel $kernel_source_path
     elif [[ $1 == "qemu" ]];then
             build_qemu
     elif [[ $1 == "busybox" ]];then
@@ -314,6 +326,21 @@ ${cmd_qemu_system} \
 #       -hda ./${img_name}
 }
 
+my_boot_via_initramfs(){
+kernel_bzImage=$1
+initramfs_path=$2
+echo "===$kernel_bzImage===$initramfs_path"
+
+echo "${cmd_qemu_system} \
+        -m 4096M \
+        -smp 4 \
+        -kernel $kernel_bzImage \
+        -initrd $initramfs_path \
+        -serial mon:stdio -nographic \
+        -append "init=/linuxrc root=/dev/sda console=ttyS0 debug""
+}
+
+        #-drive format=raw,file=/data/sandbox/rootfs.img \
 kill_02(){
         ps axu | grep qemu-system-x86_64 |grep -v grep | awk '{print $2}' | xargs kill -9
 }
@@ -321,8 +348,10 @@ kill_02(){
 
 usage() {
     loginfo "一键部署" "$0 one_deploy"
+    loginfo "环境" "$0 env-install"
     loginfo "编译" "$0 build  buildroot"
     loginfo "编译" "$0 build  linux"
+    loginfo "编译" "$0 build  kernel /data/sandbox/linux-5.4.147/"
     loginfo "编译" "$0 build  qemu"
     loginfo "编译" "$0 build  busybox"
     loginfo "环境检查" "$0 check"
@@ -333,21 +362,47 @@ usage() {
     loginfo "方法1.step3" "$0 stop_vm"
 
     echo ""
-	loginfo "方法2.with busybox:"
+	loginfo "方法2.with busybox+initramfs+image"
 	loginfo "方法2.step1" "$0 mkfs /data/sandbox/vm/Disk01.raw(device) /data/sandbox/vm/Img01(mountpoint)"
     loginfo "方法2.step2" "$0 modules_install /data/sandbox/alikernel-4.9/kernel-4.9/ /data/sandbox/vm/Img01/"
     loginfo "方法2.step3" "$0 busybox_boot /xx/xx/bzImage /data/sandbox/vm/Disk01.raw"
     loginfo "方法2.step4" "$0 kill"
   
     echo ""
+    loginfo "方法3.with busybox+initramfs:"
+    loginfo "方法3.step1" "$0 create_initramfs \$seq \$kernel_path"
+    loginfo "           " "\t$0 create_initramfs 01 /data/sandbox/linux-5.4.147"
+    loginfo "方法3.step3" "$0 busybox_boot_via_initramfs \$bzImage \$initramfs_path" 
+    loginfo "           " "\t$0 busybox_boot_via_initramfs /xx/xx/bzImage /data/sandbox/initramfs-01.cpio.gz" 
+    loginfo "方法3.step4" "$0 kill"
+
+
+    echo ""
     loginfo "bzImage列表:"
     find ${root_dir} -name "*bzImage"
     
+    echo ""
+    loginfo "initramfs列表:"
+	find ${root_dir} -name "*.cpio.gz"
+
 	echo ""
     loginfo "Git信息" 
 	echo "`echo -e $gitinfo` "
     echo ""
 }
+
+do_env_install() {
+	echo "bash /data/sandbox/muahao_tools/install_os_kernel_depennd_packages.sh"
+	bash /data/sandbox/muahao_tools/install_os_kernel_depennd_packages.sh
+}
+
+
+create_initramfs() {
+	seq=$1
+	kernel_source_path=$2
+	bash /data/sandbox/muahao_tools/create_initramfs.sh  01_create_initramfs $seq $kernel_source_path
+}
+
 
 if [[ $# == 0 ]];then
 	usage 
@@ -363,7 +418,8 @@ else
     #预备：编译qemu
     if [[ $1 == "build" ]];then
         project_name=$2
-        build_one_project $project_name
+        kernel_source_path=$3
+        build_one_project $project_name $kernel_source_path
     ######################### 
     #       方法1           #
     #########################
@@ -376,6 +432,8 @@ else
         start_vm_01
     elif [[ $1 == "stop_vm" ]];then
         stop_vm_01
+    elif [[ $1 == "env-install" ]];then
+        do_env_install
  
     ######################### 
     #       方法2：         #
@@ -403,6 +461,20 @@ else
         kernel_bzImage="$2"
 		img_name="$3"
         boot_02 $kernel_bzImage $img_name
+    elif [[ $1 == "kill" ]];then
+        kill_02
+
+    ######################### 
+    #       方法3：         #
+    #########################
+    elif [[ $1 == "create_initramfs" ]];then
+		seq=$2
+		source_path=$3
+		create_initramfs $seq $source_path
+    elif [[ $1 == "busybox_boot_via_initramfs" ]];then
+        kernel_bzImage="$2"
+		init_ramfs_path="$3"
+        my_boot_via_initramfs $kernel_bzImage $init_ramfs_path
     elif [[ $1 == "kill" ]];then
         kill_02
     fi
