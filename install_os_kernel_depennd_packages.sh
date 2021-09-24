@@ -9,3 +9,6 @@ yum install automake autoconf libtool bison flex cmake crash -y
 
 yum install -y perl-ExtUtils-MakeMaker
 
+yum install -y ctags cscope
+
+yum -y install gcc+ gcc-c++
