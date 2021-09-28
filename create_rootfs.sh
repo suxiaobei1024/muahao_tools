@@ -152,6 +152,20 @@ EOF
 	echo "IMG_PATH:$IMG_PATH"
 	sleep 3
 
+	echo "
+	qemu-system-x86_64 \
+        -m 1024M \
+        -smp 4 \
+        -kernel $BZ_IMAGE \
+        -hda $IMG_PATH \
+        -drive file=$IMG_PATH,if=none,id=drive-virtio-disk1,format=raw,cache=none \
+        -device virtio-blk-pci,scsi=off,config-wce=off,bus=pci.0,addr=0x6,drive=drive-virtio-disk1,bootindex=1 \
+        -netdev \"user,id=user.0,hostfwd=tcp:0.0.0.0:2222-:22\" -device virtio-net-pci,netdev=user.0 \
+        -serial mon:stdio -nographic \
+        -append \"init=/linuxrc root=/dev/vda rootfstype=ext4 console=ttyS0 debug\"
+	"
+	exit 0
+
 	qemu-system-x86_64 \
 	    -m 1024M \
 	    -smp 4 \
@@ -165,7 +179,7 @@ EOF
 }
 
 
-pre_clean_up
-create_rootfs_img
+#pre_clean_up
+#create_rootfs_img
 start_vm
 

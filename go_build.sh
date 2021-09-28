@@ -44,8 +44,8 @@ busybox_dir=`ls -d  /data/sandbox/open_linux/busybox*  | grep -v tar`
 vm_path="${root_dir}/vm/"
 rootfs_cpio_path="${buildroot_dir}output/images/rootfs.cpio.xz"
 
-cmd_qemu_system="${qemu_dir}/x86_64-softmmu/qemu-system-x86_64"
-test ! -e "${qemu_dir}/x86_64-softmmu/qemu-system-x86_64" && cmd_qemu_system=`which qemu-system-x86_64`
+cmd_qemu_system=`which qemu-system-x86_64`
+#test ! -e "${qemu_dir}/x86_64-softmmu/qemu-system-x86_64" && cmd_qemu_system=`which qemu-system-x86_64`
 cmd_qemu_img="${qemu_dir}/qemu-img"
 test ! -e "${qemu_dir}/qemu-img" && cmd_qemu_img=`which qemu-img`
 
@@ -416,16 +416,38 @@ start_vm_01() {
 	echo "img_path:$img_path"
 	sleep 3
 
-	${cmd_qemu_system} \
-	    -m 4096M \
-	    -smp 4 \
-	    -kernel $bzImage_path \
+    #qemu-system-x86_64 \
+    #    -m 1024M \
+    #    -smp 4 \
+    #    -kernel $bzImage_path \
+    #    -hda $img_path \
+    #    -drive file=$img_path,if=none,id=drive-virtio-disk1,format=raw,cache=none \
+    #    -device virtio-blk-pci,scsi=off,config-wce=off,bus=pci.0,addr=0x6,drive=drive-virtio-disk1,bootindex=1 \
+    #    -netdev "user,id=user.0,hostfwd=tcp:0.0.0.0:2222-:22" -device virtio-net-pci,netdev=user.0 \
+    #    -serial mon:stdio -nographic \
+    #    -append "init=/linuxrc root=/dev/vda rootfstype=ext4 console=ttyS0 debug"
+
+	echo "${cmd_qemu_system} \
+        -m 4096M \
+        -smp 4 \
+        -kernel $bzImage_path \
         -hda $img_path \
         -drive file=$img_path,if=none,id=drive-virtio-disk1,format=raw,cache=none \
         -device virtio-blk-pci,scsi=off,config-wce=off,bus=pci.0,addr=0x6,drive=drive-virtio-disk1,bootindex=1 \
-        -netdev "user,id=user.0,hostfwd=tcp:0.0.0.0:2222-:22" -device virtio-net-pci,netdev=user.0 \
-	    -serial mon:stdio -nographic \
-	    -append "init=/linuxrc root=/dev/vda rootfstype=ext4 console=ttyS0 debug"
+        -netdev \"user,id=user.0,hostfwd=tcp:0.0.0.0:2222-:22\" -device virtio-net-pci,netdev=user.0 \
+        -serial mon:stdio -nographic \
+        -append \"init=/linuxrc root=/dev/vda rootfstype=ext4 console=ttyS0 debug\""
+	exit 0 
+	#${cmd_qemu_system} \
+	#    -m 4096M \
+	#    -smp 4 \
+	#    -kernel $bzImage_path \
+    #    -hda $img_path \
+    #    -drive file=$img_path,if=none,id=drive-virtio-disk1,format=raw,cache=none \
+    #    -device virtio-blk-pci,scsi=off,config-wce=off,bus=pci.0,addr=0x6,drive=drive-virtio-disk1,bootindex=1 \
+    #    -netdev "user,id=user.0,hostfwd=tcp:0.0.0.0:2222-:22" -device virtio-net-pci,netdev=user.0 \
+	#    -serial mon:stdio -nographic \
+	#    -append "init=/linuxrc root=/dev/vda rootfstype=ext4 console=ttyS0 debug"
 }
 
 stop_vm_01() {
