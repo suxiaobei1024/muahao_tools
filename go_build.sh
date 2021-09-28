@@ -331,13 +331,13 @@ kernel_bzImage=$1
 initramfs_path=$2
 echo "===$kernel_bzImage===$initramfs_path"
 
-echo "${cmd_qemu_system} \
+${cmd_qemu_system} \
         -m 4096M \
         -smp 4 \
         -kernel $kernel_bzImage \
         -initrd $initramfs_path \
         -serial mon:stdio -nographic \
-        -append "init=/linuxrc root=/dev/sda console=ttyS0 debug""
+        -append "init=/linuxrc root=/dev/sda console=ttyS0 debug"
 }
 
         #-drive format=raw,file=/data/sandbox/rootfs.img \
