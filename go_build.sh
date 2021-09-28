@@ -11,7 +11,6 @@
                 # qemu + buildroot + kernel
 #       方法2： （函数名02结尾）
                 # qemu + kernel
-
 #目录结构:
 #root path:/data/sandbox
 #tree
@@ -22,7 +21,6 @@
 #   sPkernel/
 
 
-#iso_path=`find . -name Fedora-Server-dvd-x86_64-25-1.3.iso`
 gitinfo="
 git clone https://github.com/torvalds/linux.git\n
 git clone https://github.com/buildroot/buildroot\n
@@ -31,36 +29,36 @@ git clone git@gitlab.alibaba-inc.com:alikernel/kernel-4.9.git\n
 git clone https://github.com/muahao/muahao_tools.git\n
 wget http://busybox.net/downloads/busybox-1.27.2.tar.bz2\n"
 
-root_dir=`cd "$(dirname "$0")";pwd`
-
+###############################
+#    ENV                      #
+###############################
 root_dir="/data/sandbox/"
 open_linux_dir="${root_dir}/open_linux"
 buildroot_dir="${open_linux_dir}/buildroot/"
 linux_dir="${open_linux_dir}/linux/"
 qemu_dir="${open_linux_dir}/qemu/"
 muahao_tools_dir="${root_dir}/muahao_tools/"
-shopee_kernel_dir="${root_dir}/xxx/"
 busybox_dir=`ls -d  /data/sandbox/open_linux/busybox*  | grep -v tar`
 vm_path="${root_dir}/vm/"
 rootfs_cpio_path="${buildroot_dir}output/images/rootfs.cpio.xz"
-
 cmd_qemu_system=`which qemu-system-x86_64`
 #test ! -e "${qemu_dir}/x86_64-softmmu/qemu-system-x86_64" && cmd_qemu_system=`which qemu-system-x86_64`
 cmd_qemu_img="${qemu_dir}/qemu-img"
 test ! -e "${qemu_dir}/qemu-img" && cmd_qemu_img=`which qemu-img`
 
-#.config 配置模板
-gavins_config_for_linux_path="${muahao_tools_dir}/example_config/gavins_config_for_linux"
-gavins_config_for_buildroot_path="${muahao_tools_dir}/example_config/gavins_config_for_buildroot"
+###############################
+#       .config               #
+###############################
+#.config
+gavins_config_for_linux_path="${muahao_tools_dir}/example_config/kernel_config/gavins_config_for_linux"
+gavins_config_for_buildroot_path="${muahao_tools_dir}/example_config/buildroot_config/gavins_config_for_buildroot"
 #目标.config
 config_for_linux_path_we_need=$gavins_config_for_linux_path
 config_for_buildroot_path_we_need=$gavins_config_for_buildroot_path
 
 . ${muahao_tools_dir}/shell_libs/log.sh
 
-
 cd $root_dir
-#####################环境检查：
 check(){
 	#check buildroot
 	log_info "Check...."
@@ -412,42 +410,20 @@ start_vm_01() {
 	bzImage_path=$1
 	img_path=$2
 
-	echo "bzImage_path:$bzImage_path"
-	echo "img_path:$img_path"
-	sleep 3
+	loginfo "bzImage_path:" "$bzImage_path"
+	loginfo "img_path:" "$img_path"
 
-    #qemu-system-x86_64 \
-    #    -m 1024M \
-    #    -smp 4 \
-    #    -kernel $bzImage_path \
-    #    -hda $img_path \
-    #    -drive file=$img_path,if=none,id=drive-virtio-disk1,format=raw,cache=none \
-    #    -device virtio-blk-pci,scsi=off,config-wce=off,bus=pci.0,addr=0x6,drive=drive-virtio-disk1,bootindex=1 \
-    #    -netdev "user,id=user.0,hostfwd=tcp:0.0.0.0:2222-:22" -device virtio-net-pci,netdev=user.0 \
-    #    -serial mon:stdio -nographic \
-    #    -append "init=/linuxrc root=/dev/vda rootfstype=ext4 console=ttyS0 debug"
-
-	echo "${cmd_qemu_system} \
-        -m 4096M \
-        -smp 4 \
-        -kernel $bzImage_path \
+	sleep 1
+	${cmd_qemu_system} \
+	    -m 4096M \
+	    -smp 4 \
+	    -kernel $bzImage_path \
         -hda $img_path \
         -drive file=$img_path,if=none,id=drive-virtio-disk1,format=raw,cache=none \
         -device virtio-blk-pci,scsi=off,config-wce=off,bus=pci.0,addr=0x6,drive=drive-virtio-disk1,bootindex=1 \
-        -netdev \"user,id=user.0,hostfwd=tcp:0.0.0.0:2222-:22\" -device virtio-net-pci,netdev=user.0 \
-        -serial mon:stdio -nographic \
-        -append \"init=/linuxrc root=/dev/vda rootfstype=ext4 console=ttyS0 debug\""
-	exit 0 
-	#${cmd_qemu_system} \
-	#    -m 4096M \
-	#    -smp 4 \
-	#    -kernel $bzImage_path \
-    #    -hda $img_path \
-    #    -drive file=$img_path,if=none,id=drive-virtio-disk1,format=raw,cache=none \
-    #    -device virtio-blk-pci,scsi=off,config-wce=off,bus=pci.0,addr=0x6,drive=drive-virtio-disk1,bootindex=1 \
-    #    -netdev "user,id=user.0,hostfwd=tcp:0.0.0.0:2222-:22" -device virtio-net-pci,netdev=user.0 \
-	#    -serial mon:stdio -nographic \
-	#    -append "init=/linuxrc root=/dev/vda rootfstype=ext4 console=ttyS0 debug"
+        -netdev "user,id=user.0,hostfwd=tcp:0.0.0.0:2222-:22" -device virtio-net-pci,netdev=user.0 \
+	    -serial mon:stdio -nographic \
+	    -append "init=/linuxrc root=/dev/vda rootfstype=ext4 console=ttyS0 debug"
 }
 
 stop_vm_01() {
@@ -455,48 +431,24 @@ stop_vm_01() {
 }
 
 
-###################方法2：
-create_image_02(){
-    #方法2: 需要创建文件系统
-    if [[ -e ${img_name} ]];then
-        rm -fr ${img_name}
-    fi
-    ${cmd_qemu_img} create -f raw ${img_name} 10G
-	if [[ $? != 0 ]];then
-		echo "${cmd_qemu_img} create -f raw ${img_name} 10G failed!"
-		exit 1
-	fi
-    mkfs -t ext4 ${img_name}
-    if [[ -e ${mount_point} ]];then
-        umount ${mount_point}
-        rm -fr ${mount_point}
-    fi
-    mkdir -p ${mount_point}
-    mount -o loop ${img_name} ${mount_point}
+do_kernel_modules_install(){
+	kernel_code_path=$1
+	img_mountpoint=$2
+
+	loginfo "kernel_code_path:" "$kernel_code_path"
+	loginfo "img_mountpoint:" "$img_mountpoint"
+	sleep 2
+
+    cd $kernel_code_path;
+	make modules_install INSTALL_MOD_PATH=$img_mountpoint
 }
 
-modules_install_02(){
-    cd $module_path;
-	make modules_install INSTALL_MOD_PATH=$mount_point
-}
-
-boot_02(){
-${cmd_qemu_system} \
-        -m 4096M \
-        -smp 4 \
-		-serial mon:stdio -nographic \
-		-kernel $bzImage_path \
-        -append "init=/linuxrc root=/dev/sda earlyprintk=ttyS0 console=ttyS0 debug" \
-        -drive format=raw,file=${img_name}
-
-#    -append "console=ttyS0" \
-#       -hda ./${img_name}
-}
-
-my_boot_via_initramfs(){
+do_boot_via_initramfs(){
 bzImage_path=$1
 initramfs_path=$2
-echo "===$bzImage_path===$initramfs_path"
+
+loginfo "bzImage_path:" "$bzImage_path"
+loginfo "initramfs_path:" "$initramfs_pathh"
 
 ${cmd_qemu_system} \
         -m 4096M \
@@ -507,7 +459,6 @@ ${cmd_qemu_system} \
         -append "init=/linuxrc root=/dev/sda console=ttyS0 debug"
 }
 
-        #-drive format=raw,file=/data/sandbox/rootfs.img \
 kill_02(){
         ps axu | grep qemu-system-x86_64 |grep -v grep | awk '{print $2}' | xargs kill -9
 }
@@ -525,13 +476,10 @@ usage() {
 
     echo ""
 	loginfo "方法1.step1" "$0 create_rootfs rootfs-01"
-    loginfo "方法1.step2" "$0 start_vm /xx/xx/bzImage /data/sandbox/vm/rootfs-01.raw"
-    loginfo "方法1.step3" "$0 stop_vm"
+    loginfo "方法1.step2" "$0 modules_install /data/sandbox/linux-5.4.147/ /data/sandbox/vm/rootfs-01/"
+    loginfo "方法1.step3" "$0 start_vm /xx/xx/bzImage /data/sandbox/vm/rootfs-01.raw"
+    loginfo "方法1.step4" "$0 stop_vm"
 
-    #echo ""
-	#loginfo "方法2.with busybox+initramfs+image"
-	#loginfo "方法2.step1" "$0 mkfs /data/sandbox/vm/Disk01.raw(device) /data/sandbox/vm/Img01(mountpoint)"
-    #loginfo "方法2.step2" "$0 modules_install /data/sandbox/alikernel-4.9/kernel-4.9/ /data/sandbox/vm/Img01/"
     #loginfo "方法2.step3" "$0 busybox_boot /xx/xx/bzImage /data/sandbox/vm/Disk01.raw"
     #loginfo "方法2.step4" "$0 kill"
 
@@ -597,6 +545,14 @@ else
     elif [[ $1 == "create_rootfs" ]];then
         rootfs_id="$2"
         create_image_01 $rootfs_id
+    elif [[ $1 == "modules_install" ]];then
+		kernel_code_path=$2
+		img_mountpoint=$3
+
+		test ! -e $kernel_code_path && echo "kernel_code_path is empty" && exit 0
+		test ! -e $img_mountpoint && echo "img_mountpoint is empty" && exit 0
+	
+        do_kernel_modules_install $kernel_code_path $img_mountpoint
     elif [[ $1 == "start_vm" ]];then
         bzImage_path="$2"
 		img_path="$3"
@@ -605,35 +561,6 @@ else
         stop_vm_01
     elif [[ $1 == "env-install" ]];then
         do_env_install
-
-    ##########################
-    ##       方法2：         #
-    ##########################
-    #elif [[ $1 == "mkfs" ]];then
-    #    echo "Begin mkfs..."
-	#	img_name=$2
-	#	mount_point=$3
-	#	if [[ -z  $img_name || -z $mount_point ]];then
-	#		echo "img_name:$img_name , mount_point:$mount_point"
-	#		exit 1
-	#	else
-    #	    create_image_02 $img_name $mount_point
-	#	fi
-    #elif [[ $1 == "modules_install" ]];then
-	#	module_path=$2
-	#	mount_point=$3
-	#	if [[ -z $module_path || -z $mount_point ]];then
-	#		echo "module_path:$module_path is empty!"
-	#		exit 1
-	#	else
-	#		modules_install_02 $module_path $mount_point
-	#	fi
-    #elif [[ $1 == "busybox_boot" ]];then
-    #    bzImage_path="$2"
-	#	img_name="$3"
-    #    boot_02 $bzImage_path $img_name
-    #elif [[ $1 == "kill" ]];then
-    #    kill_02
 
     #########################
     #       方法3：         #
@@ -645,7 +572,7 @@ else
     elif [[ $1 == "busybox_boot_via_initramfs" ]];then
         bzImage_path="$2"
 		init_ramfs_path="$3"
-        my_boot_via_initramfs $bzImage_path $init_ramfs_path
+        do_boot_via_initramfs $bzImage_path $init_ramfs_path
     elif [[ $1 == "kill" ]];then
         kill_02
     fi

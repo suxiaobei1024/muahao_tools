@@ -1,3 +1,4 @@
+# Used for centos7
 yum groups mark install "Development Tools"
 yum groups mark convert "Development Tools"
 yum groupinstall "Development Tools" -y
