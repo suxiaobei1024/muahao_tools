@@ -40,7 +40,7 @@ linux_dir="${open_linux_dir}/linux/"
 qemu_dir="${open_linux_dir}/qemu/"
 muahao_tools_dir="${root_dir}/muahao_tools/"
 shopee_kernel_dir="${root_dir}/xxx/"
-busybox_dir="${open_linux_dir}/busybox-1.27.2/"
+BUSYBOX_DIR="${open_linux_dir}/busybox-1.27.2/"
 vm_path="${root_dir}/vm/"
 rootfs_cpio_path="${buildroot_dir}output/images/rootfs.cpio.xz"
 
@@ -69,8 +69,8 @@ check(){
 	else
 		log_info "${rootfs_cpio_path} exist!"
 	fi
-
-	#check qemu
+	
+	#check qemu 
     if [[ ! -e ${cmd_qemu_system} || ! -e ${cmd_qemu_img} ]];then
 		log_error "$cmd_qemu_system not exist!"
     else
@@ -85,7 +85,7 @@ check(){
 		log_info "${vm_path} already exist!"
 	fi
 
-	#check linux .config
+	#check linux .config 
 	if [[ $(cat ${linux_dir}/.config | grep "CONFIG_INITRAMFS_SOURCE" | grep -q "open_linux";echo $?) != 0 ]];then
 		log_info "linux .config CONFIG_INITRAMFS_SOURCE not configure, try to fix..."
 		aa="CONFIG_INITRAMFS_SOURCE=${rootfs_cpio_path}"
@@ -160,7 +160,7 @@ configure_linux(){
 		#log_error_exit "Backup: $linux_dir/.config -> /tmp/config_$dd failed!"
 		log_info "Backup: $linux_dir/.config -> /tmp/config_$dd failed!"
 	fi
-
+	
 	if [[ $(cp "${config_for_linux_path_we_need}" "$linux_dir/.config" >/dev/null 2>&1;echo $?) == 0  ]];then
 		log_info "We final used .config is: ${config_for_linux_path_we_need}"
 	else
@@ -174,7 +174,7 @@ configure_linux(){
 		sed -i '/CONFIG_INITRAMFS_SOURCE/d' "${linux_dir}/.config"
 		echo $aa >> "${linux_dir}/.config"
 	else
-		log_info "`cat ${linux_dir}/.config | grep 'CONFIG_INITRAMFS_SOURCE' | grep -v grep`"
+		log_info "`cat ${linux_dir}/.config | grep 'CONFIG_INITRAMFS_SOURCE' | grep -v grep`"	
 	fi
 
 	# begin build linux
@@ -213,7 +213,7 @@ build_busybox(){
 	wget http://busybox.net/downloads/busybox-1.27.2.tar.bz2
 	tar  -xjf busybox-1.27.2.tar.bz2
 	yum install glibc-static -y
-	cd $busybox_dir
+	cd $BUSYBOX_DIR
 	make defconfig
 	make menuconfig
 	#这里有一个重要的配置，因为 busybox 将被用作 init 程序，而且我们的磁盘镜像中没有任何其它库，所以 busybox 需要被静态编译成一个独立、无依赖的可执行文件，以免运行时发生链接错误:
@@ -233,7 +233,7 @@ build_kernel() {
 	kernel_source_path=$1
     loginfo "编译内核:" "$kernel_source_path"
 	cd $kernel_source_path
-	make -j 20
+	make -j 20 
 }
 
 build_one_project(){
@@ -266,6 +266,131 @@ one_deply(){
 }
 
 ####################方法1：
+create_rootfs_img() {
+	IMG_NAME=$1
+	ROOTFS_ID=$2
+
+	ROOTFS_DIR="/data/sandbox/$ROOTFS_ID/"
+
+    # 0. Create a img
+	qemu-img create -f raw ${IMG_NAME} 8096M
+	mkfs -t ext4 ${IMG_NAME}
+	mkdir $ROOTFS_DIR
+	mount -t ext4 -o loop ${IMG_NAME} /data/sandbox/$ROOTFS_ID
+
+	# 1. install busybox
+	cd $BUSYBOX_DIR
+	sudo make  CONFIG_PREFIX=$ROOTFS_DIR install
+
+	# 2. install_modules
+	# install_modules
+
+	# 4 rootfs mknod and create $ROOTFS_ID.cpio.gz
+	cd $ROOTFS_DIR
+	test ! -d proc && mkdir proc
+	test ! -d sys && mkdir sys
+	test ! -d dev && mkdir dev
+	test ! -d etc && mkdir etc
+	test ! -d tmp && mkdir tmp
+	test ! -d mnt && mkdir mnt
+	test ! -d root && mkdir root
+	test ! -d sys/kernel/debug && mkdir -p sys/kernel/debug
+	test ! -d etc/init.d && mkdir etc/init.d
+
+	sudo mknod -m 600 dev/console c 5 1
+	sudo mknod dev/ram b 1 0
+	sudo mknod dev/sda b 1 0
+
+
+	touch etc/inittab
+	chmod +x etc/inittab
+#cat > etc/inittab << EOF
+#:sysinit:/etc/rc.d/rc.sysinit
+#::respawn:/sbin/getty 19200 tty1
+#::respawn:/sbin/getty 19200 tty2
+#::respawn:/sbin/getty 19200 tty3
+#::respawn:/sbin/getty 19200 tty4
+#::respawn:/sbin/getty 19200 tty5
+#::respawn:/sbin/getty 19200 tty6
+#::ctrlaltdel:/sbin/reboot
+#::shutdown:/bin/umount -a -r
+#EOF
+
+
+# V1
+	###########################
+    #    inittab              #
+    ###########################
+cat > etc/inittab << EOF
+::sysinit:/etc/init.d/rcS
+::askfirst:-/bin/sh
+::restart:/sbin/init
+::ctrlaltdel:/sbin/reboot
+::shutdown:/bin/umount -a -r
+::shutdown:/sbin/swapoff -a
+EOF
+
+	###########################
+    # root/.bashrc            #
+    ###########################
+	touch root/.bashrc
+	chmod 644 root/.bashrc
+cat > root/.bashrc << EOF
+alias rm='rm -i'
+alias cp='cp -i'
+alias mv='mv -i'
+EOF
+
+	###########################
+    # passwd                  #
+    ###########################
+touch etc/passwd
+chmod 644 etc/passwd
+cat > etc/passwd << EOF
+root:x:0:0:root:/root:/bin/bash
+EOF
+
+touch etc/group
+chmod 644 etc/group
+cat > etc/group << EOF
+root:x:0:
+EOF
+
+touch etc/shadow
+chmod 400 etc/shadow
+cat > etc/shadow << EOF
+root:$6$rounds=5000$ZIphQ93q4FEEpCS2$dIo.F.YCbQyIXyc2ztaMICrorRwDjGz/TfPEeR1kX6YZc2LyTeRKstnE62zNDGgerDBolPAgwtQ0ij1QTUdPP/:18876:0:99999:7:::
+EOF
+
+
+	###########################
+    # run when vm start       #
+    ###########################
+	touch etc/init.d/rcS
+	chmod +x etc/init.d/rcS
+cat > etc/init.d/rcS << EOF
+#!/bin/sh
+echo -e "\tWelcome to \033[36m AhaoMu-Linux\033[0m"
+
+# step1:
+export PATH=/sbin:/bin:/usr/bin:/usr/sbin;
+export HOSTNAME=muahao-host
+alias ll='ls -l --color=auto'
+alias ls='ls --color=auto'
+source /root/.bashrc
+
+# step2:
+mount -t proc none /proc
+mount -t sysfs none /sys
+mount -t debugfs none /sys/kernel/debug
+mount -t tmpfs none /tmp
+mdev -s # We need this to find /dev/sda later
+echo -e "nBoot took $(cut -d' ' -f1 /proc/uptime) secondsn"
+exec /bin/sh
+
+EOF
+}
+
 create_image_01(){
     #方法1: 仅仅需要 ${cmd_qemu_img} create -f raw ${img_name} 10G
     #${cmd_qemu_img} create -f qcow2 ${img_name} 20G
@@ -275,12 +400,31 @@ create_image_01(){
     ${cmd_qemu_img} create -f raw ${img_name} 10G
 }
 
+#start_vm_01(){
+#   ${cmd_qemu_system} \
+#   -machine type=q35 -serial mon:stdio -nographic \
+#   -kernel $kernel_bzImage \
+#   -append "earlyprintk=ttyS0 console=ttyS0 debug" \
+#   -hda ${img_name}
+#}
+
 start_vm_01(){
-   ${cmd_qemu_system} \
-   -machine type=q35 -serial mon:stdio -nographic \
-   -kernel $kernel_bzImage \
-   -append "earlyprintk=ttyS0 console=ttyS0 debug" \
-   -hda ${img_name}
+	BZ_IMAGE=$1
+	IMG_PATH=$2
+	echo "BZ_IMAGE:$BZ_IMAGE"
+	echo "IMG_PATH:$IMG_PATH"
+	sleep 3
+
+    ${cmd_qemu_system} \
+	    -m 1024M \
+	    -smp 4 \
+	    -kernel $BZ_IMAGE \
+        -hda $IMG_PATH \
+        -drive file=$IMG_PATH,if=none,id=drive-virtio-disk1,format=raw,cache=none \
+        -device virtio-blk-pci,scsi=off,config-wce=off,bus=pci.0,addr=0x6,drive=drive-virtio-disk1,bootindex=1 \
+        -netdev "user,id=user.0,hostfwd=tcp:0.0.0.0:2222-:22" -device virtio-net-pci,netdev=user.0 \
+	    -serial mon:stdio -nographic \
+	    -append "init=/linuxrc root=/dev/vda rootfstype=ext4 console=ttyS0 debug"
 }
 
 stop_vm_01() {
@@ -357,6 +501,7 @@ usage() {
     loginfo "环境检查" "$0 check"
 
     echo ""
+	loginfo "方法1: qemu+rootfs" ""
 	loginfo "方法1.step1" "$0 create_image /data/sandbox/vm/disk01.raw(device)"
     loginfo "方法1.step2" "$0 start_vm /xx/xx/bzImage /data/sandbox/vm/disk01.raw"
     loginfo "方法1.step3" "$0 stop_vm"
@@ -367,26 +512,26 @@ usage() {
     loginfo "方法2.step2" "$0 modules_install /data/sandbox/alikernel-4.9/kernel-4.9/ /data/sandbox/vm/Img01/"
     loginfo "方法2.step3" "$0 busybox_boot /xx/xx/bzImage /data/sandbox/vm/Disk01.raw"
     loginfo "方法2.step4" "$0 kill"
-
+  
     echo ""
     loginfo "方法3.with busybox+initramfs:"
     loginfo "方法3.step1" "$0 create_initramfs \$seq \$kernel_path"
     loginfo "           " "\t$0 create_initramfs 01 /data/sandbox/linux-5.4.147"
-    loginfo "方法3.step3" "$0 busybox_boot_via_initramfs \$bzImage \$initramfs_path"
-    loginfo "           " "\t$0 busybox_boot_via_initramfs /xx/xx/bzImage /data/sandbox/initramfs-01.cpio.gz"
+    loginfo "方法3.step3" "$0 busybox_boot_via_initramfs \$bzImage \$initramfs_path" 
+    loginfo "           " "\t$0 busybox_boot_via_initramfs /xx/xx/bzImage /data/sandbox/initramfs-01.cpio.gz" 
     loginfo "方法3.step4" "$0 kill"
 
 
     echo ""
     loginfo "bzImage列表:"
     find ${root_dir} -name "*bzImage"
-
+    
     echo ""
     loginfo "initramfs列表:"
 	find ${root_dir} -name "*.cpio.gz"
 
 	echo ""
-    loginfo "Git信息"
+    loginfo "Git信息" 
 	echo "`echo -e $gitinfo` "
     echo ""
 }
@@ -405,7 +550,7 @@ create_initramfs() {
 
 
 if [[ $# == 0 ]];then
-	usage
+	usage 
 else
     #检查环境
     check
@@ -420,7 +565,7 @@ else
         project_name=$2
         kernel_source_path=$3
         build_one_project $project_name $kernel_source_path
-    #########################
+    ######################### 
     #       方法1           #
     #########################
     elif [[ $1 == "create_image" ]];then
@@ -429,13 +574,13 @@ else
     elif [[ $1 == "start_vm" ]];then
         kernel_bzImage="$2"
 		img_name="$3"
-        start_vm_01
+        start_vm_01 $kernel_bzImage $img_name
     elif [[ $1 == "stop_vm" ]];then
         stop_vm_01
     elif [[ $1 == "env-install" ]];then
         do_env_install
-
-    #########################
+ 
+    ######################### 
     #       方法2：         #
     #########################
     elif [[ $1 == "mkfs" ]];then
@@ -464,7 +609,7 @@ else
     elif [[ $1 == "kill" ]];then
         kill_02
 
-    #########################
+    ######################### 
     #       方法3：         #
     #########################
     elif [[ $1 == "create_initramfs" ]];then

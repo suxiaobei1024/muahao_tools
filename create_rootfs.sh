@@ -3,13 +3,13 @@
 # - https://blog.csdn.net/think_ycx/article/details/80800614
 # - 编译内核+BusyBox定制一个Linux提供ssh和web服务: https://blog.51cto.com/chenpipi/1390874
 
-ROOTFS_ID="rootfs-05"
+ROOTFS_ID="rootfs-01"
 mkdir $ROOTFS_ID
 
 BUSYBOX_DIR="/data/sandbox/open_linux/busybox-1.21.0"
 IMG_NAME="$ROOTFS_ID.raw"
-IMG_PATH="/data/sandbox/${IMG_NAME}"
-ROOTFS_DIR="/data/sandbox/$ROOTFS_ID/"
+IMG_PATH="/data/sandbox/vm/${IMG_NAME}"
+IMG_MOUNTPOINT="/data/sandbox/vm/$ROOTFS_ID/"
 KERNEL_SOURCE_DIR="/usr/src/linux-5.4.147/"
 BZ_IMAGE="/usr/src/linux-5.4.147/arch/x86_64/boot/bzImage"
 
@@ -18,7 +18,7 @@ install_modules() {
 	# 2. install kernel modules in $ROOTFS_ID
 	cd $KERNEL_SOURCE_DIR
 	sudo make modules_install \ # 安装内核模块
-	INSTALL_MOD_PATH=$ROOTFS_DIR  # 指定安装路径
+	INSTALL_MOD_PATH=$IMG_MOUNTPOINT  # 指定安装路径
 }
 
 pre_clean_up() {
@@ -28,20 +28,20 @@ pre_clean_up() {
 
 create_rootfs_img() {
     # 0. Create a img
-	qemu-img create -f raw ${IMG_NAME} 8096M
-	mkfs -t ext4 ${IMG_NAME}
-	mkdir $ROOTFS_DIR
-	mount -t ext4 -o loop ${IMG_NAME} /data/sandbox/$ROOTFS_ID
+	qemu-img create -f raw ${IMG_PATH} 8096M
+	mkfs -t ext4 ${IMG_PATH}
+	mkdir $IMG_MOUNTPOINT
+	mount -t ext4 -o loop ${IMG_PATH} ${IMG_MOUNTPOINT}
 	
 	# 1. install busybox
 	cd $BUSYBOX_DIR
-	sudo make  CONFIG_PREFIX=$ROOTFS_DIR install
+	sudo make  CONFIG_PREFIX=$IMG_MOUNTPOINT install
 	
 	# 2. install_modules
 	# install_modules
 	
 	# 4 rootfs mknod and create $ROOTFS_ID.cpio.gz
-	cd $ROOTFS_DIR
+	cd $IMG_MOUNTPOINT
 	test ! -d proc && mkdir proc
 	test ! -d sys && mkdir sys
 	test ! -d dev && mkdir dev
