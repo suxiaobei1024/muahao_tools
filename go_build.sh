@@ -264,7 +264,7 @@ one_deply(){
 }
 
 ####################方法1：
-create_image_01() {
+create_one_rootfs_img() {
 	rootfs_id=$1
 	image_name="${rootfs_id}.raw"
 	image_path="${vm_path}/${rootfs_id}.raw"
@@ -275,7 +275,7 @@ create_image_01() {
 	test ! -d $image_mountpoint && mkdir -p $image_mountpoint
 	
 	# Create a raw
-    ${cmd_qemu_img} create -f raw ${img_name} 10G
+    ${cmd_qemu_img} create -f raw ${image_path} 10G
 	mount -t ext4 -o loop ${image_path} ${image_mountpoint}
 
 	# Pack rootfs img
@@ -294,9 +294,6 @@ configure_rootfs_img() {
 	# 1. install busybox in rootfs
 	cd $busybox_dir
 	sudo make  CONFIG_PREFIX=$image_mountpoint install
-
-	# 2. install_modules
-	# install_modules
 
 	# 4 rootfs 
 	cd $image_mountpoint
@@ -544,7 +541,7 @@ else
     #########################
     elif [[ $1 == "create_rootfs" ]];then
         rootfs_id="$2"
-        create_image_01 $rootfs_id
+        create_one_rootfs_img $rootfs_id
     elif [[ $1 == "modules_install" ]];then
 		kernel_code_path=$2
 		img_mountpoint=$3
